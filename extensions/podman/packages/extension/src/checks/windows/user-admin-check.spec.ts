@@ -18,49 +18,45 @@
 import type { TelemetryLogger } from '@podman-desktop/api';
 import { beforeEach, expect, test, vi } from 'vitest';
 
-import { HYPER_V_DOC_LINKS } from '/@/checks/windows/constants';
 import type { PowerShellClient } from '/@/utils/powershell';
 import { getPowerShellClient } from '/@/utils/powershell';
 
-import { HyperVInstalledCheck } from './hyper-v-installed-check';
+import { UserAdminCheck } from './user-admin-check';
 
 vi.mock(import('@podman-desktop/api'));
-vi.mock(import('../../utils/powershell'), () => ({
+vi.mock(import('/@/utils/powershell'), () => ({
   getPowerShellClient: vi.fn(),
 }));
 
 const mockTelemetryLogger = {} as TelemetryLogger;
 
+let userAdminCheck: UserAdminCheck;
+
 const POWERSHELL_CLIENT: PowerShellClient = {
   isUserAdmin: vi.fn(),
   isHyperVInstalled: vi.fn(),
-  isHyperVRunning: vi.fn(),
   isVirtualMachineAvailable: vi.fn(),
   isRunningElevated: vi.fn(),
+  isHyperVRunning: vi.fn(),
 };
 
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(getPowerShellClient).mockResolvedValue(POWERSHELL_CLIENT);
+  userAdminCheck = new UserAdminCheck(mockTelemetryLogger);
 });
 
-test('expect HyperVInstalledCheck preflight check return failure result if HyperV not installed', async () => {
-  vi.mocked(POWERSHELL_CLIENT.isHyperVInstalled).mockResolvedValue(false);
-
-  const hyperVInstalledCheck = new HyperVInstalledCheck(mockTelemetryLogger);
-  const result = await hyperVInstalledCheck.execute();
-  expect(result.successful).toBeFalsy();
-  expect(result.description).equal('Hyper-V is not installed on your system.');
-  expect(result.docLinks?.[0].url).equal(HYPER_V_DOC_LINKS.url);
-  expect(result.docLinks?.[0].title).equal(HYPER_V_DOC_LINKS.title);
-});
-
-test('expect HyperVInstalledCheck preflight check return OK if HyperV is installed', async () => {
-  vi.mocked(POWERSHELL_CLIENT.isHyperVInstalled).mockResolvedValue(true);
-
-  const hyperVInstalledCheck = new HyperVInstalledCheck(mockTelemetryLogger);
-  const result = await hyperVInstalledCheck.execute();
+test('expect UserAdminCheck returns successful result if user is admin', async () => {
+  vi.mocked(POWERSHELL_CLIENT.isUserAdmin).mockResolvedValue(true);
+  const result = await userAdminCheck.execute();
   expect(result.successful).toBeTruthy();
   expect(result.description).toBeUndefined();
-  expect(result.docLinks).toBeUndefined();
+});
+
+test('expect UserAdminCheck returns failure result if user is not admin', async () => {
+  vi.mocked(POWERSHELL_CLIENT.isUserAdmin).mockResolvedValue(false);
+  const result = await userAdminCheck.execute();
+  expect(result.successful).toBeFalsy();
+  expect(result.description).equal('You must have administrative rights');
+  expect(result.docLinks?.[0]).toBeUndefined();
 });
